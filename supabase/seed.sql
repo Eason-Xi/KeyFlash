@@ -1,0 +1,2 @@
+-- Intentionally empty. Preview data lives in src/lib/demo.ts and must not be mixed
+-- with real community projects or imply that demo firmware has been verified.

@@ -1,0 +1,6 @@
+node_modules
+.next
+package-lock.json
+supabase/config.toml
+ESP32_键盘固件社区_PRD_V0.1.md
+.next-e2e
