@@ -9,3 +9,5 @@ playwright-report/
 supabase/.temp/
 .DS_Store
 .next-e2e/
+.vercel
+.env*.local
