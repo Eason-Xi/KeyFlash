@@ -14,6 +14,7 @@ export default defineConfig({
     command: 'npm run dev -- --port 3001',
     url: 'http://127.0.0.1:3001',
     reuseExistingServer: false,
+    timeout: 180000,
     env: {
       KEYFLASH_E2E: '1',
       NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54329',

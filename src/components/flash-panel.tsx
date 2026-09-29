@@ -8,16 +8,15 @@ import type { Project, Release } from '@/lib/types';
 import { getFile } from '@/lib/api';
 import { db } from '@/lib/supabase';
 import { formatBytes, message } from '@/lib/validation';
-import { prepareFirmware } from '@/lib/firmware';
+import { prepareFirmware, defaultRelease } from '@/lib/firmware';
 import { useApp } from './providers';
+import { useLoginHref } from './ui';
 export function FlashPanel({ project: p, releases }: { project: Project; releases: Release[] }) {
   const params = useSearchParams();
   const { user, notify } = useApp();
+  const loginHref = useLoginHref();
   const [releaseId, setReleaseId] = useState(
-    params.get('version') ||
-      releases.find((r) => r.channel === 'stable')?.id ||
-      releases[0]?.id ||
-      '',
+    () => defaultRelease(releases, params.get('version'))?.id || '',
   );
   const release = releases.find((r) => r.id === releaseId);
   const [supported, setSupported] = useState<boolean | null>(null);
@@ -217,12 +216,16 @@ export function FlashPanel({ project: p, releases }: { project: Project; release
           <AlertTriangle size={19} />
           {p.demo
             ? '这是示例项目，没有可用的烧录文件。发布真实固件后即可在线烧录。'
-            : '此版本尚未提供可在线烧录的固件，或项目已归档。'}
+            : p.status === 'archived'
+              ? '项目已归档，不再提供在线烧录。'
+              : !release
+                ? '作者尚未发布固件版本。'
+                : '此版本未开放在线烧录，可切换其他版本或前往版本页下载。'}
         </div>
       )}
       {!user && (
         <div className="inline-note">
-          在线烧录需要<Link href="/login">登录账号</Link>，以便保存你的设备与烧录记录。
+          在线烧录需要<Link href={loginHref}>登录账号</Link>，以便保存你的设备与烧录记录。
         </div>
       )}
       <label className="field-label">
@@ -360,7 +363,10 @@ export function FlashPanel({ project: p, releases }: { project: Project; release
           <div>
             <strong>固件已写入并通过校验</strong>
             <p>请测试按键、旋钮和灯光，并分享兼容性结果。</p>
-            <Link href={`/project/${p.slug}/compatibility`} className="button secondary small">
+            <Link
+              href={`/project/${p.slug}/compatibility?version=${encodeURIComponent(release!.id)}`}
+              className="button secondary small"
+            >
               提交成功 / 失败反馈
             </Link>
           </div>

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -28,7 +29,16 @@ import { db, configured } from '@/lib/supabase';
 import type { Project, Release, Comment, Compatibility, FirmwareFile } from '@/lib/types';
 import { message, formatBytes, sha256 } from '@/lib/validation';
 import { useApp } from './providers';
-import { ProjectIcon, Tag, Loading, Empty, ErrorState, statusNames, DateText } from './ui';
+import {
+  ProjectIcon,
+  Tag,
+  Loading,
+  Empty,
+  ErrorState,
+  statusNames,
+  DateText,
+  useLoginHref,
+} from './ui';
 import { FlashPanel } from './flash-panel';
 export function ProjectDetail({ slug, section = 'overview' }: { slug: string; section?: string }) {
   const { user, notify } = useApp();
@@ -426,6 +436,7 @@ function Reviews({
   refresh: () => Promise<void>;
 }) {
   const { user, notify } = useApp();
+  const loginHref = useLoginHref();
   const [rating, setRating] = useState(5);
   const [body, setBody] = useState('');
   const [device, setDevice] = useState('');
@@ -433,6 +444,10 @@ function Reviews({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+    if (body.trim().length < 5) {
+      notify('使用体验至少需要 5 个字符', true);
+      return;
+    }
     setBusy(true);
     try {
       const { error } = await db().rpc('submit_review', {
@@ -501,7 +516,8 @@ function Reviews({
         </form>
       ) : (
         <div className="inline-note">
-          <Link href="/login">登录</Link>后可以评分和发表评论。{p.demo && ' 当前评价为示例内容。'}
+          <Link href={loginHref}>登录</Link>后可以评分和发表评论。
+          {p.demo && ' 当前评价为示例内容。'}
         </div>
       )}
       {comments.length ? (
@@ -524,8 +540,12 @@ export function CompatibilityPanel({
   refresh: () => Promise<void>;
 }) {
   const { user, notify } = useApp();
+  const requested = useSearchParams().get('version');
   const [busy, setBusy] = useState(false);
-  const [show, setShow] = useState(false);
+  // 从烧录成功页跳转过来时直接展开表单并选中刚烧录的版本
+  const [show, setShow] = useState(() =>
+    Boolean(user && requested && releases.some((r) => r.id === requested)),
+  );
   const successes = reports.filter((r) => r.success).length;
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -593,7 +613,11 @@ export function CompatibilityPanel({
           <div className="form-grid">
             <label>
               固件版本
-              <select name="version_id" required>
+              <select
+                name="version_id"
+                required
+                defaultValue={releases.some((r) => r.id === requested) ? requested! : undefined}
+              >
                 {releases.map((r) => (
                   <option key={r.id} value={r.id}>
                     v{r.version}

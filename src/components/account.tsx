@@ -27,18 +27,13 @@ export function Account({ kind }: { kind: 'favorites' | 'history' }) {
       return;
     }
     setLoading(true);
-    Promise.all([
-      listProjects(),
-      kind === 'favorites' ? getFavorites(user.id) : getHistory(user.id),
-    ])
-      .then(([all, items]) => {
-        if (kind === 'favorites')
-          setProjects(all.filter((p) => (items as string[]).includes(p.id)));
-        else {
-          setProjects(all);
-          setHistory(items as FlashSession[]);
-        }
-      })
+    setError('');
+    (kind === 'favorites'
+      ? getFavorites(user.id)
+          .then((ids) => listProjects({ ids }))
+          .then(setProjects)
+      : getHistory(user.id).then(setHistory)
+    )
       .catch((e) => setError(message(e)))
       .finally(() => setLoading(false));
   }, [user, kind]);
@@ -88,7 +83,7 @@ export function Account({ kind }: { kind: 'favorites' | 'history' }) {
             </thead>
             <tbody>
               {history.map((h) => {
-                const p = projects.find((p) => p.id === h.project_id);
+                const p = h.projects;
                 return (
                   <tr key={h.id}>
                     <td>
@@ -143,30 +138,54 @@ export function Author({ username }: { username: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   useEffect(() => {
-    listProjects()
-      .then((p) => setProjects(p.filter((x) => x.author === username)))
+    setLoading(true);
+    setError('');
+    listProjects({ author: username })
+      .then(setProjects)
       .catch((e) => setError(message(e)))
       .finally(() => setLoading(false));
   }, [username]);
+  const total = (key: 'flash_count' | 'favorite_count') =>
+    projects.reduce((n, p) => n + Number(p[key]), 0).toLocaleString();
   return (
     <div className="page">
-      <PageHeading
-        eyebrow="COMMUNITY MAKER"
-        title={username}
-        description={`${projects.length} 个公开项目 · 与社区分享创造的乐趣`}
-      />
+      <PageHeading eyebrow="COMMUNITY MAKER" title={username} description="与社区分享创造的乐趣" />
       {loading ? (
         <Loading />
       ) : error ? (
         <ErrorState error={error} />
       ) : projects.length ? (
-        <div className="project-grid">
-          {projects.map((p) => (
-            <ProjectCard key={p.id} project={p} />
-          ))}
-        </div>
+        <>
+          <div className="stat-grid compact">
+            <div>
+              <span>公开项目</span>
+              <strong>{projects.length}</strong>
+            </div>
+            <div>
+              <span>累计烧录</span>
+              <strong>{total('flash_count')}</strong>
+            </div>
+            <div>
+              <span>获得收藏</span>
+              <strong>{total('favorite_count')}</strong>
+            </div>
+          </div>
+          <div className="project-grid">
+            {projects.map((p) => (
+              <ProjectCard key={p.id} project={p} />
+            ))}
+          </div>
+        </>
       ) : (
-        <Empty title="暂无公开项目" />
+        <Empty
+          title="暂无公开项目"
+          description="这位创作者还没有发布项目，或昵称不存在。"
+          action={
+            <Link className="button secondary" href="/explore">
+              返回发现
+            </Link>
+          }
+        />
       )}
     </div>
   );

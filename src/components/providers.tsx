@@ -8,8 +8,17 @@ const Context = createContext<{
   authLoading: boolean;
   notify: (text: string, error?: boolean) => void;
 }>({ user: null, authLoading: true, notify: () => {} });
+// 令牌刷新或切回标签页时 Supabase 会给出新的 user 对象；账号信息未变时沿用旧对象，
+// 避免依赖 user 的页面重新加载、清空正在填写的表单
+function keepSameUser(prev: User | null, next: User | null) {
+  return prev && next && prev.id === next.id && prev.updated_at === next.updated_at ? prev : next;
+}
 export function Providers({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
+  const setUser = useCallback(
+    (next: User | null) => setUserState((prev) => keepSameUser(prev, next)),
+    [],
+  );
   const [authLoading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ text: string; error: boolean } | null>(null);
   const notify = useCallback((text: string, error = false) => setToast({ text, error }), []);
@@ -38,7 +47,7 @@ export function Providers({ children }: { children: ReactNode }) {
       live = false;
       data.subscription.unsubscribe();
     };
-  }, []);
+  }, [setUser]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 6500);

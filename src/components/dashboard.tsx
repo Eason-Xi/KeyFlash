@@ -15,8 +15,16 @@ import {
 } from 'lucide-react';
 import { listProjects, saveProject, publishRelease, getReleases } from '@/lib/api';
 import { db } from '@/lib/supabase';
-import { chips, features, deviceTypes, type Project, type Release } from '@/lib/types';
+import {
+  chips,
+  features,
+  deviceTypes,
+  projectColors,
+  type Project,
+  type Release,
+} from '@/lib/types';
 import { parseAddress, message, formatBytes } from '@/lib/validation';
+import { suggestAddress } from '@/lib/firmware';
 import { useApp } from './providers';
 import {
   PageHeading,
@@ -39,8 +47,8 @@ export function Dashboard({ editId, create = false }: { editId?: string; create?
       return;
     }
     setLoading(true);
-    listProjects()
-      .then((p) => setProjects(p.filter((x) => x.owner_id === user.id)))
+    listProjects({ ownerId: user.id })
+      .then(setProjects)
       .catch((e) => setError(message(e)))
       .finally(() => setLoading(false));
   }, [user, editId, create]);
@@ -126,7 +134,15 @@ export function Dashboard({ editId, create = false }: { editId?: string; create?
     </div>
   );
 }
-function ProjectForm({ project }: { project?: Project }) {
+const colorNames: Record<(typeof projectColors)[number], string> = {
+  orange: '橙色',
+  purple: '紫色',
+  blue: '蓝色',
+  green: '绿色',
+  pink: '粉色',
+  yellow: '黄色',
+};
+function ProjectForm({ project, lockChip = false }: { project?: Project; lockChip?: boolean }) {
   const { user, notify } = useApp();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -220,11 +236,22 @@ function ProjectForm({ project }: { project?: Project }) {
         <div className="form-grid">
           <label>
             芯片平台
-            <select name="chip" defaultValue={project?.chip || 'ESP32-S3'}>
+            {/* 已发布版本的 Manifest 绑定芯片，数据库也会拒绝更换 */}
+            <select
+              name={lockChip ? undefined : 'chip'}
+              disabled={lockChip}
+              defaultValue={project?.chip || 'ESP32-S3'}
+            >
               {chips.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </select>
+            {lockChip && (
+              <>
+                <input type="hidden" name="chip" value={project?.chip} />
+                <small>已有发布版本，芯片平台不可更改</small>
+              </>
+            )}
           </label>
           <label>
             设备类型
@@ -283,6 +310,18 @@ function ProjectForm({ project }: { project?: Project }) {
               ))}
             </select>
           </label>
+          <label>
+            卡片颜色
+            <select name="color" defaultValue={project?.color || 'orange'}>
+              {projectColors.map((c) => (
+                <option key={c} value={c}>
+                  {colorNames[c]}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="form-grid">
           <label>
             GitHub 仓库（选填）
             <input
@@ -357,7 +396,7 @@ function ProjectManager({ project: p }: { project: Project }) {
         </button>
       </div>
       {tab === 'settings' ? (
-        <ProjectForm project={p} />
+        <ProjectForm project={p} lockChip={releases.length > 0} />
       ) : (
         <>
           <section className="panel">
@@ -528,13 +567,7 @@ function ReleaseForm({
               ...prev,
               ...added.map((file) => ({
                 file,
-                address: file.name.includes('bootloader')
-                  ? p.chip === 'ESP32'
-                    ? '0x1000'
-                    : '0x0'
-                  : file.name.includes('partition')
-                    ? '0x8000'
-                    : '0x10000',
+                address: suggestAddress(file.name, p.chip),
               })),
             ]);
             e.target.value = '';

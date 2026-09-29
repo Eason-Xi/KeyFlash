@@ -19,6 +19,7 @@ import {
 import { useState } from 'react';
 import { useApp } from './providers';
 import { supabase } from '@/lib/supabase';
+import { useLoginHref } from './ui';
 const links = [
   { href: '/explore', name: '发现固件', icon: Compass },
   { href: '/favorites', name: '我的收藏', icon: Heart },
@@ -28,6 +29,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const { user, notify } = useApp();
   const [open, setOpen] = useState(false);
+  const loginHref = useLoginHref();
   return (
     <div className="app-shell">
       <aside className={`sidebar ${open ? 'is-open' : ''}`}>
@@ -124,7 +126,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
                       ? '烧录指南'
                       : path === '/login'
                         ? '账号'
-                        : '发现固件'}
+                        : path.startsWith('/user/')
+                          ? '创作者主页'
+                          : '发现固件'}
             </strong>
           </div>
           <div className="topbar-actions">
@@ -149,7 +153,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 </button>
               </>
             ) : (
-              <Link className="button small secondary" href="/login">
+              <Link className="button small secondary" href={loginHref}>
                 登录 / 注册 <ArrowUpRight size={14} />
               </Link>
             )}

@@ -1834,6 +1834,20 @@ progress::-webkit-progress-value {
 .input-icon:focus-within {
   border-color: #ed9479;
 }
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  font-size: 11px;
+  color: #a5afbc;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid #e6e9ee;
+}
 .auth-switch {
   display: flex;
   justify-content: space-between;

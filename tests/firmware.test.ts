@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { prepareFirmware } from '../src/lib/firmware';
+import { prepareFirmware, suggestAddress, defaultRelease } from '../src/lib/firmware';
 import { sha256 } from '../src/lib/validation';
-import type { Manifest } from '../src/lib/types';
+import type { Manifest, Release } from '../src/lib/types';
 
 test('preflight rejects a tampered final file before returning any writable images', async () => {
   const bytes = new Uint8Array([0xe9, 1, 2, 3]);
@@ -48,4 +48,39 @@ test('preflight rejects size mismatches and invalid manifests before flashing', 
     }),
   );
   assert.equal(downloads, 0);
+});
+
+test('suggested addresses follow the default ESP-IDF layout per chip', () => {
+  assert.equal(suggestAddress('bootloader.bin', 'ESP32'), '0x1000');
+  assert.equal(suggestAddress('bootloader.bin', 'ESP32-S3'), '0x0');
+  assert.equal(suggestAddress('partition-table.bin', 'ESP32-C3'), '0x8000');
+  assert.equal(suggestAddress('ota_data_initial.bin', 'ESP32'), '0xd000');
+  assert.equal(suggestAddress('firmware.factory.bin', 'ESP32-S3'), '0x0');
+  assert.equal(suggestAddress('keyboard-merged.bin', 'ESP32'), '0x0');
+  assert.equal(suggestAddress('macropad.bin', 'ESP32-S3'), '0x10000');
+});
+test('flash page defaults to a release that can actually be flashed', () => {
+  const file = { path: 'p', name: 'a.bin', address: 0, size: 1, sha256: 'a'.repeat(64) };
+  const release = (id: string, channel: Release['channel'], online: boolean): Release => ({
+    id,
+    project_id: 'p',
+    version: id,
+    channel,
+    changelog: '',
+    hardware: '',
+    manifest: { chip: 'ESP32', baudRate: 460800, files: [file] },
+    online_enabled: online,
+    created_at: '',
+  });
+  const list = [
+    release('beta', 'beta', true),
+    release('old-stable', 'stable', false),
+    release('stable', 'stable', true),
+  ];
+  assert.equal(defaultRelease(list, null)?.id, 'stable');
+  assert.equal(defaultRelease(list, 'old-stable')?.id, 'old-stable', 'explicit link wins');
+  assert.equal(defaultRelease(list, 'missing')?.id, 'stable', 'unknown id falls back');
+  assert.equal(defaultRelease([list[1], list[0]], null)?.id, 'beta');
+  assert.equal(defaultRelease([list[1]], null)?.id, 'old-stable');
+  assert.equal(defaultRelease([], null), undefined);
 });

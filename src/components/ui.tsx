@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   ArrowUpRight,
   Star,
@@ -149,13 +150,19 @@ export function PageHeading({
     </div>
   );
 }
+/** 登录页链接，登录后回到当前页面 */
+export function useLoginHref() {
+  const path = usePathname();
+  return path && path !== '/login' ? `/login?next=${encodeURIComponent(path)}` : '/login';
+}
 export function LoginGate() {
+  const href = useLoginHref();
   return (
     <Empty
       title="登录后继续"
       description="登录账号，管理你的项目、收藏和烧录记录。"
       action={
-        <Link className="button primary" href="/login">
+        <Link className="button primary" href={href}>
           登录 / 注册 <ArrowRight size={16} />
         </Link>
       }

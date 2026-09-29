@@ -23,5 +23,7 @@ export default defineConfig({
     command: 'npm run dev',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: !process.env.CI,
+    // 首次编译在机器繁忙时可能超过默认的 60 秒
+    timeout: 180000,
   },
 });

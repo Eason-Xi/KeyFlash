@@ -22,6 +22,7 @@ export const features = [
   'Macro',
   'Media Control',
 ];
+export const projectColors = ['orange', 'purple', 'blue', 'green', 'pink', 'yellow'] as const;
 export type Chip = (typeof chips)[number];
 export type Project = {
   id: string;
@@ -103,7 +104,8 @@ export type FlashSession = {
   version_id: string;
   chip: string;
   status: 'started' | 'success' | 'failed';
-  firmware_versions?: { version: string };
+  firmware_versions?: { version: string } | null;
+  projects?: { name: string; slug: string } | null;
   error: string;
   created_at: string;
 };

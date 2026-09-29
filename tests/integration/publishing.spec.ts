@@ -46,6 +46,7 @@ test('authenticated author can create, publish, download, favorite and review th
         user,
       });
     if (path === '/auth/v1/user') return json(user);
+    if (path === '/auth/v1/settings') return json({ external: { github: false } });
     if (path === '/auth/v1/logout') return json({});
     if (path.includes('/storage/v1/object/')) {
       const name = decodeURIComponent(
@@ -55,6 +56,7 @@ test('authenticated author can create, publish, download, favorite and review th
         binaries.set(name, Buffer.from([0xe9, 1, 2, 3]));
         return json({ Key: `firmware/${name}`, Id: 'test-object' });
       }
+      if (method === 'DELETE') return json([]);
       if (method === 'GET')
         return route.fulfill({
           contentType: 'application/octet-stream',
@@ -84,6 +86,15 @@ test('authenticated author can create, publish, download, favorite and review th
     if (path === '/rest/v1/firmware_versions') {
       if (method === 'POST') {
         const r = { ...req.postDataJSON(), created_at: new Date().toISOString() };
+        if (releases.some((x) => x.version === r.version))
+          return json(
+            {
+              code: '23505',
+              message:
+                'duplicate key value violates unique constraint "firmware_versions_project_id_version_key"',
+            },
+            409,
+          );
         releases.push(r);
         projects[0].version = r.version;
         return json(null, 201);
@@ -91,6 +102,7 @@ test('authenticated author can create, publish, download, favorite and review th
       return json(releases);
     }
     if (path === '/rest/v1/comment_catalog') return json(comments);
+    if (path === '/rest/v1/flash_sessions' && method === 'GET') return json([]);
     if (path === '/rest/v1/compatibility_reports') {
       if (method === 'POST') {
         reports.push({
@@ -131,10 +143,15 @@ test('authenticated author can create, publish, download, favorite and review th
     unexpected.push(`${method} ${path}`);
     return json({ message: 'Unexpected test request' }, 500);
   });
-  await page.goto('/login');
+  // 从受保护页面进入登录，登录后应回到原页面
+  await page.goto('/history');
+  await page.locator('#main-content').getByRole('link', { name: '登录 / 注册' }).click();
   await page.getByLabel('邮箱').fill('maker@example.test');
   await page.getByLabel('密码', { exact: true }).fill('test-password-123');
   await page.getByRole('button', { name: '登录', exact: true }).click();
+  await expect(page).toHaveURL(/\/history$/);
+  await expect(page.getByRole('heading', { name: '还没有烧录记录' })).toBeVisible();
+  await page.getByRole('link', { name: '开发者工作台' }).first().click();
   await expect(page.getByRole('heading', { name: '开发者工作台' })).toBeVisible();
   await page.getByRole('link', { name: '创建项目' }).first().click();
   await page.getByLabel('项目名称').fill('Test MacroPad');
@@ -149,18 +166,32 @@ test('authenticated author can create, publish, download, favorite and review th
   await page.getByRole('button', { name: '发布新版本' }).click();
   await page.getByLabel('版本号').fill('1.0.0');
   await page.getByLabel('更新日志').fill('First test release with keyboard support');
-  await page
-    .locator('input[type=file]')
-    .setInputFiles({
-      name: 'firmware.bin',
-      mimeType: 'application/octet-stream',
-      buffer: Buffer.from([0xe9, 1, 2, 3]),
-    });
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'firmware.bin',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from([0xe9, 1, 2, 3]),
+  });
   await page.getByRole('button', { name: '上传并发布版本' }).click();
   await expect(page.getByText('固件版本已发布', { exact: true })).toBeVisible();
   expect(releases).toHaveLength(1);
   expect(releases[0].manifest.files[0].sha256).toMatch(/^[a-f0-9]{64}$/);
   expect(releases[0].manifest.files[0].address).toBe(65536);
+  // 重复版本号：数据库唯一约束的英文错误应转为中文提示，且清理已上传文件
+  await page.getByRole('button', { name: '发布新版本' }).click();
+  await page.getByLabel('版本号').fill('1.0.0');
+  await page.getByLabel('更新日志').fill('Accidentally reusing the same version');
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'firmware.bin',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from([0xe9, 1, 2, 3]),
+  });
+  await page.getByRole('button', { name: '上传并发布版本' }).click();
+  await expect(page.locator('.field-error')).toHaveText('该版本号已发布过，请使用新的版本号');
+  expect(releases).toHaveLength(1);
+  // 已有版本后芯片平台锁定
+  await page.getByRole('button', { name: '项目资料' }).click();
+  await expect(page.getByLabel('芯片平台')).toBeDisabled();
+  await expect(page.getByText('已有发布版本，芯片平台不可更改')).toBeVisible();
   await page.getByRole('link', { name: '查看项目', exact: true }).click();
   await page.getByRole('button', { name: '收藏项目' }).click();
   await expect(page.getByRole('button', { name: '已收藏' })).toBeVisible();

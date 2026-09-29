@@ -15,20 +15,20 @@ npm run dev
 
 ## 已实现的 MVP
 
-| 功能           | 实现                                                                                            |
-| -------------- | ----------------------------------------------------------------------------------------------- |
-| 发现与搜索     | 关键词、芯片、设备、功能、项目状态组合筛选；按发布、更新、烧录、收藏、评分排序                  |
-| 项目详情       | 作者、硬件、芯片、功能、License、仓库与官网、版本、评价、兼容性记录                             |
-| 账号           | Supabase 邮箱注册、登录、退出、邮件验证、找回与重置密码                                         |
-| 项目管理       | 创建、编辑、归档项目；查看项目数量、累计烧录、收藏、已完成烧录成功率                            |
-| 版本发布       | 多 BIN 上传、地址配置、稳定/Beta/实验版、更新日志、兼容硬件、在线烧录开关                       |
-| 固件安全       | 每个文件 16 MB 上限、最多 8 个文件、扇区对齐、范围与重叠校验、SHA-256、发布后文件不可变         |
-| 固件下载       | 访客可下载公开版本，下载前校验 SHA-256                                                          |
-| 在线烧录       | Web Serial + esptool-js；识别芯片与容量、全部文件预校验、写入、MD5 校验、重启、日志、进度和速度 |
-| 收藏与用户中心 | 账号独立收藏、烧录历史与版本、开发者项目列表                                                    |
-| 评论评分       | 登录后发表评论与五星评分；评分按用户/项目去重更新，评价以事务提交                               |
-| 兼容性         | 版本、芯片、PCB、系统、浏览器、USB 芯片、蓝牙、RGB、旋钮、成功/失败和备注                       |
-| 响应式界面     | 中文界面、桌面侧栏、手机导航、空状态、错误状态与键盘焦点                                        |
+| 功能           | 实现                                                                                                                       |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 发现与搜索     | 关键词、芯片、设备、功能、项目状态组合筛选；按发布、更新、烧录、收藏、评分排序                                             |
+| 项目详情       | 作者、硬件、芯片、功能、License、仓库与官网、版本、评价、兼容性记录                                                        |
+| 账号           | Supabase 邮箱注册、密码登录、邮箱验证码登录、GitHub 登录、退出、邮件验证、找回与重置密码；登录后回到原页面；错误提示中文化 |
+| 项目管理       | 创建、编辑、归档项目；查看项目数量、累计烧录、收藏、已完成烧录成功率                                                       |
+| 版本发布       | 多 BIN 上传、地址配置、稳定/Beta/实验版、更新日志、兼容硬件、在线烧录开关                                                  |
+| 固件安全       | 每个文件 16 MB 上限、最多 8 个文件、扇区对齐、范围与重叠校验、SHA-256、发布后文件不可变                                    |
+| 固件下载       | 访客可下载公开版本，下载前校验 SHA-256                                                                                     |
+| 在线烧录       | Web Serial + esptool-js；识别芯片与容量、全部文件预校验、写入、MD5 校验、重启、日志、进度和速度                            |
+| 收藏与用户中心 | 账号独立收藏、烧录历史与版本、开发者项目列表；作者主页展示项目数、累计烧录与收藏                                           |
+| 评论评分       | 登录后发表评论与五星评分；评分按用户/项目去重更新，评价以事务提交                                                          |
+| 兼容性         | 版本、芯片、PCB、系统、浏览器、USB 芯片、蓝牙、RGB、旋钮、成功/失败和备注                                                  |
+| 响应式界面     | 中文界面、桌面侧栏、手机导航、空状态、错误状态与键盘焦点                                                                   |
 
 `/`、`/explore`、`/projects` 为发现页面；`/project/{slug}` 及其 `/versions`、`/flash`、`/reviews`、`/compatibility` 为项目页面。另有 `/dashboard`、`/dashboard/projects/new`、`/dashboard/projects/{id}`、`/favorites`、`/history`、`/user/{username}`、`/login`、`/guide`。
 
@@ -43,7 +43,7 @@ npm run dev
    npx supabase db push
    ```
 
-   也可在该项目的 SQL Editor 执行 `supabase/migrations/20260924054828_initial_keyflash.sql`。迁移会创建业务表、RLS、视图、触发器和私有 `firmware` Storage bucket。
+   也可在该项目的 SQL Editor 中**按文件名顺序**执行 `supabase/migrations/` 下的全部 SQL。迁移会创建业务表、RLS、视图、触发器、私有 `firmware` Storage bucket，并加固项目列级写权限、昵称唯一性与固件读取索引。
 
 3. 复制环境文件，填写项目 URL 和 **publishable key**：
 
@@ -58,14 +58,13 @@ npm run dev
 
    浏览器不需要 `service_role` 或 secret key，不要把它们填入 `NEXT_PUBLIC_*`。
 
-4. 在 Auth URL Configuration 中设置 Site URL，并允许以下回调：
-   - `http://127.0.0.1:3000/login`
-   - `http://127.0.0.1:3000/login?mode=recovery`
-   - 上线时添加实际 HTTPS 域名下对应的两个地址。
-5. 启用邮箱/密码登录；生产环境配置 SMTP。重启 `npm run dev`。现在列表会读取真实数据库，不会混入示例项目。
+4. 在 Auth URL Configuration 中设置 Site URL，并在 Redirect URLs 中添加 `http://127.0.0.1:3000/login**`（登录回跳会带 `next`、`mode`、`oauth` 等查询参数，需用通配符）；上线时添加实际 HTTPS 域名下的 `https://你的域名/login**`。
+5. 启用邮箱/密码登录，并配置**自定义 SMTP**：密码找回、注册确认和验证码登录都依赖邮件，Supabase 默认邮件服务每小时只能发很少几封。重启 `npm run dev`。现在列表会读取真实数据库，不会混入示例项目。
+   - **邮箱验证码登录**：在 Auth → Email Templates → Magic Link 中，把正文改为显示 `{{ .Token }}`（可直接使用 `supabase/templates/magic_link.html`），否则用户收到的是登录链接而不是 6 位验证码。验证码登录只面向已注册邮箱，不会自动建号。
+   - **GitHub 登录（可选）**：在 GitHub → Settings → Developer settings 新建 OAuth App，Authorization callback URL 填 `https://YOUR_PROJECT_REF.supabase.co/auth/v1/callback`；把 Client ID / Secret 填入 Supabase Auth → Providers → GitHub 并启用。登录页通过 `/auth/v1/settings` 检测该开关，未启用时不显示 GitHub 按钮。首次 GitHub 登录会以 GitHub 用户名作为昵称（重名自动加后缀）。
 6. 注册并验证邮箱，进入工作台创建项目，然后上传自己的真实固件。
 
-本地 Supabase 也可使用：安装并启动 Docker 后运行 `npx supabase start`，将其输出的 API URL 和 publishable/anon key 填入 `.env.local`。本仓库不要求 Docker 才能运行示例环境或 SQL 权限测试。
+本地 Supabase 也可使用：安装并启动 Docker 后运行 `npx supabase start`，将其输出的 API URL 和 publishable/anon key 填入 `.env.local`。本地验证码邮件可在 Mailpit（http://127.0.0.1:54324 ）查看；如需本地 GitHub 登录，OAuth App 回调填 `http://127.0.0.1:54321/auth/v1/callback`，导出 `SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID` / `SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET`，并把 `supabase/config.toml` 中 `[auth.external.github]` 的 `enabled` 改为 `true`。本仓库不要求 Docker 才能运行示例环境或 SQL 权限测试。
 
 ## 发布与烧录
 
@@ -90,7 +89,7 @@ npm run test:integration
 - 单元/集成测试：固件地址与哈希预校验、恶意链接、数据库迁移与 RLS、多用户隔离、公开汇总统计、固件不可变与烧录开关。使用 PGlite 执行真正的 PostgreSQL SQL，测试中的 `auth` / `storage` 外壳模拟 Supabase 基础表。
 - 浏览器测试：桌面与 390px 手机视口下的搜索组合筛选、版本/烧录入口、登录门禁、导航、溢出检查和 404。使用已安装的 Google Chrome；缺少 Chrome 时先运行 `npx playwright install chrome`。
 - `npm run test:e2e` 面向未配置 Supabase 的示例环境。
-- `npm run test:integration` 在隔离的 3001 端口启动测试应用，通过模拟 Supabase 协议验证登录、创建项目、上传版本、下载、收藏、评价与兼容性提交；不会访问云端或操作硬件。真实后端按 `docs/ACCEPTANCE.md` 验收。
+- `npm run test:integration` 在隔离的 3001 端口启动测试应用，通过模拟 Supabase 协议验证密码/验证码/GitHub 登录、创建项目、上传版本、下载、收藏、评价与兼容性提交；不会访问云端或操作硬件。真实后端按 `docs/ACCEPTANCE.md` 验收。
 
 **验证边界：** 仓库代码已实现真实接口，但尚未连接云端 Supabase 项目或实体 ESP32。数据库测试不等同于 Supabase Auth / Storage 服务联调，也不等同于实机烧录成功。
 
