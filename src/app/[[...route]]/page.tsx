@@ -8,6 +8,7 @@ import { Auth } from '@/components/auth';
 import { Dashboard } from '@/components/dashboard';
 import { Account, Author } from '@/components/account';
 import { Guide } from '@/components/guide';
+import { Privacy, Terms } from '@/components/legal';
 import { Loading } from '@/components/ui';
 type Props = { params: Promise<{ route?: string[] }> };
 const titles: Record<string, string> = {
@@ -15,6 +16,8 @@ const titles: Record<string, string> = {
   projects: '发现固件',
   login: '登录 / 注册',
   guide: '烧录指南',
+  privacy: '隐私政策',
+  terms: '服务条款',
   dashboard: '开发者工作台',
   favorites: '我的收藏',
   history: '烧录记录',
@@ -64,6 +67,8 @@ export default async function Page({ params }: { params: Promise<{ route?: strin
     view = <ProjectDetail slug={id} section={section} />;
   else if (root === 'login' && route.length === 1) view = <Auth />;
   else if (root === 'guide' && route.length === 1) view = <Guide />;
+  else if (root === 'privacy' && route.length === 1) view = <Privacy />;
+  else if (root === 'terms' && route.length === 1) view = <Terms />;
   else if (root === 'dashboard' && route.length === 1) view = <Dashboard />;
   else if (
     root === 'dashboard' &&

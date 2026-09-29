@@ -140,6 +140,10 @@ export function Auth() {
             )}
           </div>
         )}
+        <p className="auth-terms">
+          登录即表示你同意 <Link href="/terms">服务条款</Link> 和{' '}
+          <Link href="/privacy">隐私政策</Link>。
+        </p>
         <Link className="back-link" href="/">
           先逛逛社区 →
         </Link>

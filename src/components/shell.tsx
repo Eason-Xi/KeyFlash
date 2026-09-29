@@ -138,11 +138,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
                     ? '烧录记录'
                     : path === '/guide'
                       ? '烧录指南'
-                      : path === '/login'
-                        ? '账号'
-                        : path.startsWith('/user/')
-                          ? '创作者主页'
-                          : '发现固件'}
+                      : path === '/privacy'
+                        ? '隐私政策'
+                        : path === '/terms'
+                          ? '服务条款'
+                          : path === '/login'
+                            ? '账号'
+                            : path.startsWith('/user/')
+                              ? '创作者主页'
+                              : '发现固件'}
             </strong>
           </div>
           <div className="topbar-actions">
@@ -175,9 +179,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <footer className="main-footer">
           <span>© {new Date().getFullYear()} KeyFlash</span>
           <span>把创意写进硬件。</span>
-          <Link href="/guide">
-            使用指南 <ArrowUpRight size={12} />
-          </Link>
+          <span className="footer-links">
+            <Link href="/privacy">隐私政策</Link>
+            <Link href="/terms">服务条款</Link>
+            <Link href="/guide">
+              使用指南 <ArrowUpRight size={12} />
+            </Link>
+          </span>
         </footer>
       </div>
     </div>

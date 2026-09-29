@@ -93,3 +93,17 @@ test('flash page ignores an unknown version parameter', async ({ page }) => {
   await page.goto('/project/dial-one/flash?version=does-not-exist');
   await expect(page.getByLabel('选择固件版本')).toHaveValue('demo-knob-release');
 });
+test('privacy policy and terms are public and linked from footer and login', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.main-footer').getByRole('link', { name: '隐私政策' }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole('heading', { name: '隐私政策', level: 1 })).toBeVisible();
+  await expect(page).toHaveTitle(/隐私政策/);
+  await page.locator('.legal-body').getByRole('link', { name: '服务条款' }).click();
+  await expect(page.getByRole('heading', { name: '服务条款', level: 1 })).toBeVisible();
+  await page.goto('/login');
+  await expect(page.locator('.auth-terms').getByRole('link', { name: '隐私政策' })).toHaveAttribute(
+    'href',
+    '/privacy',
+  );
+});
