@@ -97,11 +97,14 @@ export async function publishRelease(
   try {
     const entries = [];
     for (const { file, address } of files) {
-      const hash = await sha256(await file.arrayBuffer());
+      const buffer = await file.arrayBuffer();
+      const hash = await sha256(buffer);
       const path = `${userId}/${project.id}/${id}/${file.name}`;
+      // 传 ArrayBuffer 而非 File：File 会走 FormData 并使用浏览器推断的类型
+      // （macOS 下 .bin 为 application/macbinary），被 bucket 的 MIME 白名单拒绝
       const { error } = await db()
         .storage.from('firmware')
-        .upload(path, file, { contentType: 'application/octet-stream', upsert: false });
+        .upload(path, buffer, { contentType: 'application/octet-stream', upsert: false });
       if (error) throw error;
       uploaded.push(path);
       entries.push({ path, name: file.name, address, size: file.size, sha256: hash });
