@@ -2,12 +2,11 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Zap, ArrowRight, Mail, LockKeyhole, KeyRound } from 'lucide-react';
-import { db, configured, githubEnabled } from '@/lib/supabase';
+import { Zap, ArrowRight } from 'lucide-react';
+import { db, configured, oauthProviders, type OAuthProvider } from '@/lib/supabase';
 import { useApp } from './providers';
-import { message, safeNext, otpCode } from '@/lib/validation';
-type Mode = 'login' | 'signup' | 'reset' | 'update' | 'otp';
-// lucide 不再提供品牌图标，这里内联 GitHub 标志
+import { message, safeNext } from '@/lib/validation';
+// lucide 不再提供品牌图标，这里内联 GitHub / Google 标志
 function GitHubMark() {
   return (
     <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
@@ -15,14 +14,37 @@ function GitHubMark() {
     </svg>
   );
 }
+function GoogleMark() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true">
+      <path
+        fill="#FFC107"
+        d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"
+      />
+      <path
+        fill="#FF3D00"
+        d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
+      />
+      <path
+        fill="#4CAF50"
+        d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"
+      />
+      <path
+        fill="#1976D2"
+        d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"
+      />
+    </svg>
+  );
+}
+const providerLabels: { id: OAuthProvider; name: string; icon: () => React.ReactElement }[] = [
+  { id: 'github', name: 'GitHub', icon: GitHubMark },
+  { id: 'google', name: 'Google', icon: GoogleMark },
+];
 export function Auth() {
-  const [mode, setMode] = useState<Mode>('login');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  // 验证码登录第二步：已发送验证码的邮箱
-  const [otpEmail, setOtpEmail] = useState('');
-  const [github, setGithub] = useState(false);
+  // null 表示仍在读取服务端已启用的登录方式
+  const [enabled, setEnabled] = useState<Record<OAuthProvider, boolean> | null>(null);
   const [fromOAuth, setFromOAuth] = useState(false);
   const { user } = useApp();
   const router = useRouter();
@@ -33,100 +55,31 @@ export function Auth() {
     if (search.get('oauth') === '1') {
       setFromOAuth(true);
       const hash = new URLSearchParams(window.location.hash.slice(1));
-      if (search.get('error') || hash.get('error')) setError('GitHub 登录未完成，请重试');
+      if (search.get('error') || hash.get('error')) setError('登录未完成，请重试');
     }
-    githubEnabled().then(setGithub);
-    if (
-      window.location.hash.includes('type=recovery') ||
-      new URLSearchParams(window.location.search).get('mode') === 'recovery'
-    )
-      setMode('update');
-    if (!configured) return;
-    const { data } = db().auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') setMode('update');
-    });
-    return () => data.subscription.unsubscribe();
+    oauthProviders().then(setEnabled);
   }, []);
-  // GitHub 授权回跳后会话由 detectSessionInUrl 自动建立，直接前往原本要去的页面
+  // 授权回跳后会话由 detectSessionInUrl 自动建立，直接前往原本要去的页面
   useEffect(() => {
     if (user && fromOAuth) router.replace(next);
   }, [user, fromOAuth, next, router]);
-  function switchTo(m: Mode) {
-    setMode(m);
-    setOtpEmail('');
+  async function signIn(provider: OAuthProvider) {
     setError('');
-    setSuccess('');
-  }
-  async function signInWithGitHub() {
-    setError('');
-    setBusy(true);
+    setBusy(provider);
     const { error } = await db().auth.signInWithOAuth({
-      provider: 'github',
+      provider,
       options: {
         redirectTo: `${window.location.origin}/login?next=${encodeURIComponent(next)}&oauth=1`,
       },
     });
-    // 成功时浏览器会跳转到 GitHub，保持 busy 防止重复点击
+    // 成功时浏览器会跳转到第三方授权页，保持 busy 防止重复点击
     if (error) {
       setError(message(error));
-      setBusy(false);
+      setBusy(null);
     }
   }
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setBusy(true);
-    const f = new FormData(e.currentTarget);
-    try {
-      const email = String(f.get('email'));
-      const password = String(f.get('password'));
-      if (mode === 'otp' && !otpEmail) {
-        const { error } = await db().auth.signInWithOtp({
-          email,
-          options: { shouldCreateUser: false },
-        });
-        if (error) throw error;
-        setOtpEmail(email);
-        setSuccess(`验证码已发送至 ${email}，10 分钟内有效。`);
-      } else if (mode === 'otp') {
-        const token = otpCode.parse(String(f.get('token')));
-        const { error } = await db().auth.verifyOtp({ email: otpEmail, token, type: 'email' });
-        if (error) throw error;
-        router.push(next);
-      } else if (mode === 'reset') {
-        const { error } = await db().auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/login?mode=recovery`,
-        });
-        if (error) throw error;
-        setSuccess('如果该邮箱已注册，你将收到重置密码邮件。');
-      } else if (mode === 'update') {
-        const { error } = await db().auth.updateUser({ password });
-        if (error) throw error;
-        setSuccess('密码已更新，可以前往工作台。');
-      } else if (mode === 'signup') {
-        const { error, data } = await db().auth.signUp({
-          email,
-          password,
-          options: {
-            data: { username: String(f.get('username')) },
-            emailRedirectTo: `${window.location.origin}/login${next === '/dashboard' ? '' : `?next=${encodeURIComponent(next)}`}`,
-          },
-        });
-        if (error) throw error;
-        if (data.session) router.push(next);
-        else setSuccess('注册请求已提交，请查收邮箱中的确认链接。');
-      } else {
-        const { error } = await db().auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        router.push(next);
-      }
-    } catch (e) {
-      setError(message(e));
-    } finally {
-      setBusy(false);
-    }
-  }
+  // 示例环境仍展示按钮（禁用），让页面结构与正式环境一致
+  const visible = providerLabels.filter((p) => !configured || enabled?.[p.id]);
   return (
     <div className="auth-page">
       <div className="auth-story">
@@ -151,22 +104,10 @@ export function Auth() {
         </div>
       </div>
       <section className="auth-card">
-        <h2>
-          {mode === 'signup'
-            ? '创建你的账号'
-            : mode === 'reset'
-              ? '找回密码'
-              : mode === 'update'
-                ? '设置新密码'
-                : mode === 'otp'
-                  ? '验证码登录'
-                  : '欢迎回来'}
-        </h2>
-        <p>{mode === 'signup' ? '让你的创意在社区中生长。' : '继续你的下一次硬件探索。'}</p>
-        {!configured && (
-          <div className="notice">当前为示例环境，配置 Supabase 后即可注册与登录。</div>
-        )}
-        {user && mode !== 'update' ? (
+        <h2>欢迎来到 KeyFlash</h2>
+        <p>使用 GitHub 或 Google 账号登录，首次登录会自动创建账号。</p>
+        {!configured && <div className="notice">当前为示例环境，配置 Supabase 后即可登录。</div>}
+        {user ? (
           <div className="success-box">
             <div>
               <strong>你已登录</strong>
@@ -177,124 +118,28 @@ export function Auth() {
             </div>
           </div>
         ) : (
-          <>
-            {github && (mode === 'login' || mode === 'signup' || mode === 'otp') && (
-              <>
-                <button
-                  type="button"
-                  className="button secondary full"
-                  disabled={busy}
-                  onClick={signInWithGitHub}
-                >
-                  <GitHubMark /> 使用 GitHub {mode === 'signup' ? '注册' : '登录'}
-                </button>
-                <div className="auth-divider">或</div>
-              </>
-            )}
-            <form className="form" onSubmit={submit}>
-              {mode === 'signup' && (
-                <label>
-                  昵称
-                  <input
-                    name="username"
-                    required
-                    minLength={2}
-                    maxLength={40}
-                    autoComplete="nickname"
-                    placeholder="怎么称呼你？"
-                  />
-                </label>
-              )}
-              {mode !== 'update' && !(mode === 'otp' && otpEmail) && (
-                <label>
-                  邮箱
-                  <div className="input-icon">
-                    <Mail size={17} />
-                    <input
-                      name="email"
-                      type="email"
-                      required
-                      autoComplete="email"
-                      placeholder="you@example.com"
-                    />
-                  </div>
-                </label>
-              )}
-              {mode === 'otp' && otpEmail && (
-                <label>
-                  验证码
-                  <div className="input-icon">
-                    <KeyRound size={17} />
-                    <input
-                      name="token"
-                      required
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={8}
-                      placeholder="6 位数字"
-                      autoFocus
-                    />
-                  </div>
-                </label>
-              )}
-              {mode !== 'reset' && mode !== 'otp' && (
-                <label>
-                  密码
-                  <div className="input-icon">
-                    <LockKeyhole size={17} />
-                    <input
-                      name="password"
-                      type="password"
-                      required
-                      minLength={8}
-                      maxLength={72}
-                      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                      placeholder="至少 8 位字符"
-                    />
-                  </div>
-                </label>
-              )}
-              {error && (
-                <div className="field-error" role="alert">
-                  {error}
-                </div>
-              )}
-              {success && (
-                <div className="success-text" role="status">
-                  {success}
-                </div>
-              )}
-              <button disabled={busy || !configured} className="button primary full">
-                {busy
-                  ? '请稍候…'
-                  : mode === 'signup'
-                    ? '注册账号'
-                    : mode === 'reset'
-                      ? '发送重置邮件'
-                      : mode === 'update'
-                        ? '更新密码'
-                        : mode === 'otp'
-                          ? otpEmail
-                            ? '验证并登录'
-                            : '发送验证码'
-                          : '登录'}
-                <ArrowRight size={16} />
+          <div className="auth-providers">
+            {visible.map(({ id, name, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                className="button secondary full"
+                disabled={!configured || busy !== null}
+                onClick={() => signIn(id)}
+              >
+                <Icon /> {busy === id ? '正在跳转…' : `使用 ${name} 登录`}
               </button>
-            </form>
-          </>
+            ))}
+            {configured && enabled && !visible.length && (
+              <div className="notice">登录服务暂未开放，请稍后再试。</div>
+            )}
+            {error && (
+              <div className="field-error" role="alert">
+                {error}
+              </div>
+            )}
+          </div>
         )}
-        <div className="auth-switch">
-          <button onClick={() => switchTo(mode === 'signup' ? 'login' : 'signup')}>
-            {mode === 'signup' ? '已有账号？登录' : '还没有账号？免费注册'}
-          </button>
-          {mode === 'login' && <button onClick={() => switchTo('otp')}>用验证码登录</button>}
-          {mode === 'login' && <button onClick={() => switchTo('reset')}>忘记密码</button>}
-          {mode === 'otp' && otpEmail && (
-            <button onClick={() => switchTo('otp')}>重新发送 / 换个邮箱</button>
-          )}
-          {mode === 'otp' && <button onClick={() => switchTo('login')}>用密码登录</button>}
-          {mode === 'reset' && <button onClick={() => switchTo('login')}>返回登录</button>}
-        </div>
         <Link className="back-link" href="/">
           先逛逛社区 →
         </Link>

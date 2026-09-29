@@ -161,9 +161,6 @@ const authMessages: Record<string, string> = {
   over_request_rate_limit: '请求过于频繁，请稍后再试',
   session_not_found: '登录已过期，请重新登录',
   signup_disabled: '当前暂未开放注册',
-  // 验证码登录只面向已注册邮箱（shouldCreateUser: false）
-  otp_disabled: '该邮箱尚未注册，请先注册或使用 GitHub 登录',
-  otp_expired: '验证码错误或已过期，请重新获取',
 };
 export function message(error: unknown): string {
   if (error instanceof z.ZodError) {
@@ -188,18 +185,11 @@ export function message(error: unknown): string {
   if (authMessages[code]) return authMessages[code];
   if (raisedMessages[text]) return raisedMessages[text];
   if (text === 'Invalid login credentials') return authMessages.invalid_credentials;
-  if (text === 'Signups not allowed for otp') return authMessages.otp_disabled;
-  if (text === 'Token has expired or is invalid') return authMessages.otp_expired;
   if (e.status === 429) return '请求过于频繁，请稍后再试';
   if (e.name === 'TypeError' && /fetch|network|load failed/i.test(text))
     return '网络连接失败，请检查网络后重试';
   return text || '操作失败，请重试';
 }
-/** 邮箱验证码：去掉用户粘贴时带入的空格后必须是 6 位数字 */
-export const otpCode = z
-  .string()
-  .transform((v) => v.replace(/\s/g, ''))
-  .pipe(z.string().regex(/^\d{6}$/, '请输入邮件中的 6 位数字验证码'));
 /** 只允许站内相对路径作为登录后的回跳地址，防止开放重定向 */
 export function safeNext(value: string | null | undefined, fallback = '/dashboard') {
   if (!value || !value.startsWith('/') || value.startsWith('//') || value.includes('\\'))

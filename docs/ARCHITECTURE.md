@@ -20,18 +20,18 @@ supabase/migrations/            PostgreSQL、RLS、私有 Storage
 
 ## 数据模型
 
-| 对象                              | 用途与可见范围                                                                                       |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| profiles                          | 公开昵称，不区分大小写唯一；Auth 邮箱不复制到公开表；昵称依次取注册昵称、GitHub 用户名、`maker-xxxx` |
-| projects                          | 公开项目；仅 owner_id 用户可编辑                                                                     |
-| firmware_versions                 | 固件版本与嵌入式 Manifest；仅项目作者可发布，内容不可修改                                            |
-| favorites                         | 仅本人可读写；汇总收藏数公开                                                                         |
-| ratings                           | 公开评分；每个用户/项目唯一，只有本人可更新                                                          |
-| comments                          | 公开文字评价；只能以当前身份提交                                                                     |
-| flash_sessions                    | 仅本人可读、创建、将 started 更新到 success/failed                                                   |
-| compatibility_reports             | 公开设备测试反馈；只能以当前身份提交                                                                 |
-| project_stats                     | 只读公开汇总，只有内部触发器更新                                                                     |
-| project_catalog / comment_catalog | 使用 security_invoker 的公开查询视图，继承底层 RLS                                                   |
+| 对象                              | 用途与可见范围                                                                                             |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| profiles                          | 公开昵称，不区分大小写唯一；Auth 邮箱不复制到公开表；昵称依次取 GitHub 用户名、Google 显示名、`maker-xxxx` |
+| projects                          | 公开项目；仅 owner_id 用户可编辑                                                                           |
+| firmware_versions                 | 固件版本与嵌入式 Manifest；仅项目作者可发布，内容不可修改                                                  |
+| favorites                         | 仅本人可读写；汇总收藏数公开                                                                               |
+| ratings                           | 公开评分；每个用户/项目唯一，只有本人可更新                                                                |
+| comments                          | 公开文字评价；只能以当前身份提交                                                                           |
+| flash_sessions                    | 仅本人可读、创建、将 started 更新到 success/failed                                                         |
+| compatibility_reports             | 公开设备测试反馈；只能以当前身份提交                                                                       |
+| project_stats                     | 只读公开汇总，只有内部触发器更新                                                                           |
+| project_catalog / comment_catalog | 使用 security_invoker 的公开查询视图，继承底层 RLS                                                         |
 
 版本文件以 `{user_id}/{project_id}/{release_id}/{filename}` 存储。私有 bucket 对已发布版本允许访客读取；未发布文件只有上传者可读/清理；不提供 UPDATE 策略，已发布文件不能删除。Manifest 在数据库触发器中再次验证芯片、波特率、文件名、大小、范围、不重叠、文件所属关系和实际 Storage 元信息。
 

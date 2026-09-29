@@ -37,10 +37,10 @@ test('private workspace routes require login and demo does not fake auth', async
     await expect(page.getByRole('heading', { name: '登录后继续' })).toBeVisible();
   }
   await page.locator('#main-content').getByRole('link', { name: '登录 / 注册' }).click();
-  await expect(page.getByRole('button', { name: '登录', exact: true })).toBeDisabled();
-  await page.getByRole('button', { name: '还没有账号？免费注册' }).click();
-  await expect(page.getByLabel('昵称')).toBeVisible();
-  await expect(page.getByRole('button', { name: '注册账号' })).toBeDisabled();
+  // 示例环境展示第三方登录按钮但不可用，也没有邮箱/密码表单
+  await expect(page.getByRole('button', { name: '使用 GitHub 登录' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '使用 Google 登录' })).toBeDisabled();
+  await expect(page.getByRole('textbox')).toHaveCount(0);
 });
 test('navigation, guide and viewport have no overflow', async ({ page }, testInfo) => {
   await page.goto('/');

@@ -9,7 +9,6 @@ import {
   releaseSchema,
   message,
   safeNext,
-  otpCode,
 } from '../src/lib/validation';
 test('flash address requires complete numeric syntax and sector alignment', () => {
   assert.equal(parseAddress('0x10000'), 65536);
@@ -158,22 +157,4 @@ test('post-login redirect only accepts same-site paths', () => {
     '/a\nb',
   ])
     assert.equal(safeNext(bad), '/dashboard', String(bad));
-});
-test('email OTP accepts six digits and explains failures in Chinese', () => {
-  assert.equal(otpCode.parse('123456'), '123456');
-  assert.equal(otpCode.parse(' 123 456 '), '123456', 'pasted spaces are ignored');
-  for (const bad of ['12345', '1234567', 'abcdef', ''])
-    assert.equal(message(otpCode.safeParse(bad).error), '请输入邮件中的 6 位数字验证码', bad);
-  assert.equal(
-    message({ name: 'AuthApiError', code: 'otp_expired', status: 403, message: 'x' }),
-    '验证码错误或已过期，请重新获取',
-  );
-  assert.equal(
-    message({ name: 'AuthApiError', status: 403, message: 'Token has expired or is invalid' }),
-    '验证码错误或已过期，请重新获取',
-  );
-  assert.match(
-    message({ name: 'AuthApiError', status: 422, message: 'Signups not allowed for otp' }),
-    /尚未注册/,
-  );
 });

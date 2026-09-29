@@ -46,7 +46,20 @@ test('authenticated author can create, publish, download, favorite and review th
         user,
       });
     if (path === '/auth/v1/user') return json(user);
-    if (path === '/auth/v1/settings') return json({ external: { github: false } });
+    if (path === '/auth/v1/settings')
+      return json({ external: { email: false, github: true, google: true } });
+    if (path === '/auth/v1/authorize') {
+      // GitHub 授权完成后，Supabase 以隐式流程把会话放在 hash 中重定向回 redirect_to
+      const back = new URL(url.searchParams.get('redirect_to')!);
+      back.hash = new URLSearchParams({
+        access_token: token,
+        refresh_token: 'test-refresh',
+        expires_in: '3600',
+        expires_at: String(Math.floor(Date.now() / 1000) + 3600),
+        token_type: 'bearer',
+      }).toString();
+      return route.fulfill({ status: 302, headers: { location: back.toString() } });
+    }
     if (path === '/auth/v1/logout') return json({});
     if (path.includes('/storage/v1/object/')) {
       const name = decodeURIComponent(
@@ -146,9 +159,7 @@ test('authenticated author can create, publish, download, favorite and review th
   // 从受保护页面进入登录，登录后应回到原页面
   await page.goto('/history');
   await page.locator('#main-content').getByRole('link', { name: '登录 / 注册' }).click();
-  await page.getByLabel('邮箱').fill('maker@example.test');
-  await page.getByLabel('密码', { exact: true }).fill('test-password-123');
-  await page.getByRole('button', { name: '登录', exact: true }).click();
+  await page.getByRole('button', { name: '使用 GitHub 登录' }).click();
   await expect(page).toHaveURL(/\/history$/);
   await expect(page.getByRole('heading', { name: '还没有烧录记录' })).toBeVisible();
   await page.getByRole('link', { name: '开发者工作台' }).first().click();

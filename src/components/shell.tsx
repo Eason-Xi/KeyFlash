@@ -18,6 +18,20 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useApp } from './providers';
+import type { User } from '@supabase/supabase-js';
+// 与 private.on_signup 取昵称的顺序一致：GitHub 给 user_name，Google 给 name
+function displayName(user: User) {
+  const m = user.user_metadata ?? {};
+  return (
+    m.username ||
+    m.user_name ||
+    m.preferred_username ||
+    m.name ||
+    m.full_name ||
+    user.email?.split('@')[0] ||
+    'U'
+  );
+}
 import { supabase } from '@/lib/supabase';
 import { useLoginHref } from './ui';
 const links = [
@@ -136,10 +150,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
             {user ? (
               <>
                 <Link className="user-chip" href="/dashboard">
-                  <span>
-                    {(user.user_metadata?.username || user.email || 'U')[0].toUpperCase()}
-                  </span>
-                  {user.user_metadata?.username || user.email?.split('@')[0]}
+                  <span>{displayName(user)[0].toUpperCase()}</span>
+                  {displayName(user)}
                 </Link>
                 <button
                   className="icon-button"

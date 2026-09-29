@@ -32,18 +32,19 @@ test('Postgres migration enforces ownership, immutable firmware and private user
     ).rows.map((r) => r.username);
     assert.equal(names[0], 'alice');
     assert.match(names[2], /^ALICE-[0-9a-f]{4}$/, 'duplicate nicknames get a unique suffix');
-    // GitHub 登录只带 user_name；都没有时回退到 maker-xxxx
+    // GitHub 登录只带 user_name，Google 只带 name；都没有时回退到 maker-xxxx
     await pg.exec(
-      `insert into auth.users values('66666666-6666-4666-8666-666666666666','{"user_name":"octo-maker","full_name":"Octo"}'),('77777777-7777-4777-8777-777777777777','{"user_name":"Alice"}'),('88888888-8888-4888-8888-888888888888','{}');`,
+      `insert into auth.users values('66666666-6666-4666-8666-666666666666','{"user_name":"octo-maker","full_name":"Octo"}'),('77777777-7777-4777-8777-777777777777','{"user_name":"Alice"}'),('88888888-8888-4888-8888-888888888888','{}'),('99999999-9999-4999-8999-999999999999','{"name":"张 三","full_name":"张 三","email":"zs@example.test"}');`,
     );
     const oauthNames = (
       await pg.query<{ id: string; username: string }>(
-        `select id,username from public.profiles where id in ('66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777','88888888-8888-4888-8888-888888888888') order by id`,
+        `select id,username from public.profiles where id in ('66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777','88888888-8888-4888-8888-888888888888','99999999-9999-4999-8999-999999999999') order by id`,
       )
     ).rows.map((r) => r.username);
     assert.equal(oauthNames[0], 'octo-maker');
     assert.match(oauthNames[1], /^Alice-[0-9a-f]{4}$/, 'GitHub logins also get a unique suffix');
     assert.equal(oauthNames[2], 'maker-88888888');
+    assert.equal(oauthNames[3], '张 三', 'Google logins use the display name, never the email');
     const asUser = async (id: string) => {
       await pg.exec(
         `reset role;set role authenticated;select set_config('request.jwt.claim.sub','${id}',false);`,

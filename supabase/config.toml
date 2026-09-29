@@ -218,7 +218,8 @@ web3 = 30
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.
-enable_signup = true
+# 只提供 GitHub / Google 登录，关闭邮箱注册（[auth] enable_signup 需保持开启，第三方首次登录才能建号）
+enable_signup = false
 # If enabled, a user will be required to confirm any email change on both the old, and new email
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
@@ -242,11 +243,6 @@ otp_expiry = 600
 # pass = "env(SENDGRID_API_KEY)"
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
-
-# 验证码登录：邮件内容展示 6 位验证码而不是登录链接
-[auth.email.template.magic_link]
-subject = "KeyFlash 登录验证码"
-content_path = "./supabase/templates/magic_link.html"
 
 # Uncomment to customize email template
 # [auth.email.template.invite]
@@ -339,13 +335,21 @@ skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
 
-# GitHub 登录：在 GitHub 创建 OAuth App（回调地址填 redirect_uri），导出下面两个环境变量后改为 enabled = true。
-# 前端通过 /auth/v1/settings 检测该开关，未启用时不显示 GitHub 登录按钮。
+# 登录只提供 GitHub / Google。创建对应 OAuth 应用（回调地址填 redirect_uri），导出环境变量后改为 enabled = true。
+# 前端通过 /auth/v1/settings 检测开关，只显示已启用的登录按钮。
 [auth.external.github]
 enabled = false
 client_id = "env(SUPABASE_AUTH_EXTERNAL_GITHUB_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GITHUB_SECRET)"
 redirect_uri = "http://127.0.0.1:54321/auth/v1/callback"
+
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+redirect_uri = "http://127.0.0.1:54321/auth/v1/callback"
+# 本地使用 Google 登录需要跳过 nonce 校验
+skip_nonce_check = true
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.

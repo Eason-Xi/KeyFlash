@@ -13,15 +13,17 @@ export function db() {
   if (!supabase) throw new Error('当前为示例环境，请先配置 Supabase 后使用此功能。');
   return supabase;
 }
-/** 读取 Supabase Auth 公开设置，判断第三方登录是否已在服务端启用 */
-export async function githubEnabled(): Promise<boolean> {
-  if (!configured) return false;
+export type OAuthProvider = 'github' | 'google';
+/** 读取 Supabase Auth 公开设置，判断哪些第三方登录已在服务端启用 */
+export async function oauthProviders(): Promise<Record<OAuthProvider, boolean>> {
+  const none = { github: false, google: false };
+  if (!configured) return none;
   try {
     const res = await fetch(`${url}/auth/v1/settings`, { headers: { apikey: key! } });
-    if (!res.ok) return false;
-    const settings = (await res.json()) as { external?: Record<string, boolean> };
-    return settings.external?.github === true;
+    if (!res.ok) return none;
+    const { external } = (await res.json()) as { external?: Record<string, boolean> };
+    return { github: external?.github === true, google: external?.google === true };
   } catch {
-    return false;
+    return none;
   }
 }

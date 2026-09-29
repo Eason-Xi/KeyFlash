@@ -1404,10 +1404,6 @@ input[type='checkbox'] {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
-.success-text {
-  color: #51855b;
-  font-size: 13px;
-}
 .inset-form {
   background: #f8f9fb;
   padding: 20px;
@@ -1818,49 +1814,10 @@ progress::-webkit-progress-value {
 .auth-card .notice {
   font-size: 11px;
 }
-.input-icon {
-  display: flex;
-  align-items: center;
+.auth-providers {
+  display: grid;
   gap: 10px;
-  border: 1px solid #dfe4ec;
-  border-radius: 6px;
-  padding-left: 12px;
-  color: #a5afbc;
-}
-.input-icon input {
-  border: 0 !important;
-  box-shadow: none !important;
-}
-.input-icon:focus-within {
-  border-color: #ed9479;
-}
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 18px 0;
-  font-size: 11px;
-  color: #a5afbc;
-}
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1;
-  border-top: 1px solid #e6e9ee;
-}
-.auth-switch {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 11px;
-  margin: 23px 0;
-}
-.auth-switch button {
-  color: #9aa5b4;
-  padding: 0;
-}
-.auth-switch button:first-child {
-  color: var(--orange);
+  margin-bottom: 23px;
 }
 .auth-card > .back-link {
   font-size: 11px;
