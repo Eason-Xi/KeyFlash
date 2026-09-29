@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 const userA = '11111111-1111-4111-8111-111111111111',
   userB = '22222222-2222-4222-8222-222222222222',
   projectId = '33333333-3333-4333-8333-333333333333',
-  versionId = '44444444-4444-4444-8444-444444444444';
+  versionId = '44444444-4444-4444-8444-444444444444',
+  userC = '55555555-5555-4555-8555-555555555555';
 test('Postgres migration enforces ownership, immutable firmware and private user data', async () => {
   const pg = new PGlite();
   try {
@@ -19,10 +20,30 @@ test('Postgres migration enforces ownership, immutable firmware and private user
  alter table storage.objects enable row level security;
  grant usage on schema storage to anon,authenticated; grant select,insert,update,delete on storage.objects to anon,authenticated;
  `);
-    await pg.exec(readFileSync('supabase/migrations/20260924054828_initial_keyflash.sql', 'utf8'));
+    for (const file of readdirSync('supabase/migrations').sort())
+      await pg.exec(readFileSync(`supabase/migrations/${file}`, 'utf8'));
     await pg.exec(
-      `insert into auth.users values('${userA}','{"username":"alice"}'),('${userB}','{"username":"bob"}');`,
+      `insert into auth.users values('${userA}','{"username":"alice"}'),('${userB}','{"username":"bob"}'),('${userC}','{"username":"ALICE"}');`,
     );
+    const names = (
+      await pg.query<{ username: string }>(
+        'select username from public.profiles order by created_at',
+      )
+    ).rows.map((r) => r.username);
+    assert.equal(names[0], 'alice');
+    assert.match(names[2], /^ALICE-[0-9a-f]{4}$/, 'duplicate nicknames get a unique suffix');
+    // GitHub 登录只带 user_name；都没有时回退到 maker-xxxx
+    await pg.exec(
+      `insert into auth.users values('66666666-6666-4666-8666-666666666666','{"user_name":"octo-maker","full_name":"Octo"}'),('77777777-7777-4777-8777-777777777777','{"user_name":"Alice"}'),('88888888-8888-4888-8888-888888888888','{}');`,
+    );
+    const oauthNames = (
+      await pg.query<{ id: string; username: string }>(
+        `select id,username from public.profiles where id in ('66666666-6666-4666-8666-666666666666','77777777-7777-4777-8777-777777777777','88888888-8888-4888-8888-888888888888') order by id`,
+      )
+    ).rows.map((r) => r.username);
+    assert.equal(oauthNames[0], 'octo-maker');
+    assert.match(oauthNames[1], /^Alice-[0-9a-f]{4}$/, 'GitHub logins also get a unique suffix');
+    assert.equal(oauthNames[2], 'maker-88888888');
     const asUser = async (id: string) => {
       await pg.exec(
         `reset role;set role authenticated;select set_config('request.jwt.claim.sub','${id}',false);`,
@@ -57,6 +78,28 @@ test('Postgres migration enforces ownership, immutable firmware and private user
     );
     await assert.rejects(() =>
       pg.exec(`update public.projects set chip='ESP32-C3' where id='${projectId}'`),
+    );
+    await assert.rejects(
+      () => pg.exec(`update public.projects set created_at='2000-01-01' where id='${projectId}'`),
+      /permission denied/,
+      'created_at cannot be forged',
+    );
+    await assert.rejects(
+      () => pg.exec(`update public.projects set owner_id='${userB}' where id='${projectId}'`),
+      /permission denied/,
+    );
+    await assert.rejects(
+      () =>
+        pg.exec(
+          `insert into public.projects(owner_id,slug,name,summary,description,chip,device_type,hardware,created_at) values('${userA}','alice-old','Old Pad','A backdated macro keyboard','A backdated project description','ESP32','宏键盘','Old PCB','2000-01-01')`,
+        ),
+      /permission denied/,
+    );
+    await assert.rejects(() =>
+      pg.exec(`update public.projects set color='url(evil)' where id='${projectId}'`),
+    );
+    await pg.exec(
+      `update public.projects set color='blue', name='Alice Pad' where id='${projectId}'`,
     );
     await assert.rejects(() =>
       pg.exec(`update public.flash_sessions set project_id=gen_random_uuid()`),

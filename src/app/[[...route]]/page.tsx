@@ -1,5 +1,7 @@
 import { Suspense } from 'react';
+import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { getProject } from '@/lib/api';
 import { Explore } from '@/components/explore';
 import { ProjectDetail } from '@/components/project-detail';
 import { Auth } from '@/components/auth';
@@ -7,6 +9,47 @@ import { Dashboard } from '@/components/dashboard';
 import { Account, Author } from '@/components/account';
 import { Guide } from '@/components/guide';
 import { Loading } from '@/components/ui';
+type Props = { params: Promise<{ route?: string[] }> };
+const titles: Record<string, string> = {
+  explore: '发现固件',
+  projects: '发现固件',
+  login: '登录 / 注册',
+  guide: '烧录指南',
+  dashboard: '开发者工作台',
+  favorites: '我的收藏',
+  history: '烧录记录',
+};
+const sectionTitles: Record<string, string> = {
+  versions: '固件版本',
+  flash: '在线烧录',
+  reviews: '社区评价',
+  compatibility: '兼容性验证',
+};
+// 动态路由参数保持 URL 编码，中文昵称需要解码；非法编码按原样处理
+function decode(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { route = [] } = await params;
+  const [root, id, section] = route;
+  if (!root) return {};
+  if (root === 'user' && id) return { title: decode(id) };
+  if (root === 'project' && id) {
+    // 标题获取失败不影响页面本身，页面组件会自行展示错误或不存在状态
+    const project = await getProject(id).catch(() => null);
+    if (!project) return { title: '项目' };
+    const suffix = section && sectionTitles[section];
+    return {
+      title: suffix ? `${project.name} · ${suffix}` : project.name,
+      description: project.summary,
+    };
+  }
+  return titles[root] ? { title: titles[root] } : {};
+}
 export default async function Page({ params }: { params: Promise<{ route?: string[] }> }) {
   const { route = [] } = await params;
   const [root, id, section, fourth] = route;
@@ -33,7 +76,7 @@ export default async function Page({ params }: { params: Promise<{ route?: strin
     );
   else if ((root === 'favorites' || root === 'history') && route.length === 1)
     view = <Account kind={root} />;
-  else if (root === 'user' && id && route.length === 2) view = <Author username={id} />;
+  else if (root === 'user' && id && route.length === 2) view = <Author username={decode(id)} />;
   else notFound();
   return <Suspense fallback={<Loading />}>{view}</Suspense>;
 }

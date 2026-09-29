@@ -2,12 +2,21 @@ import { db, configured } from './supabase';
 import { demoProjects, demoReleases, demoComments, demoCompatibility } from './demo';
 import type { Project, Release, Comment, Compatibility, FlashSession } from './types';
 import { projectSchema, releaseSchema, validateFiles, sha256 } from './validation';
-export async function listProjects(): Promise<Project[]> {
-  if (!configured) return demoProjects;
-  const { data, error } = await db()
-    .from('project_catalog')
-    .select('*')
-    .order('updated_at', { ascending: false });
+export type ProjectFilter = { ownerId?: string; ids?: string[]; author?: string };
+export async function listProjects(filter: ProjectFilter = {}): Promise<Project[]> {
+  if (filter.ids && !filter.ids.length) return [];
+  if (!configured)
+    return demoProjects.filter(
+      (p) =>
+        (!filter.ownerId || p.owner_id === filter.ownerId) &&
+        (!filter.ids || filter.ids.includes(p.id)) &&
+        (!filter.author || p.author === filter.author),
+    );
+  let q = db().from('project_catalog').select('*');
+  if (filter.ownerId) q = q.eq('owner_id', filter.ownerId);
+  if (filter.ids) q = q.in('id', filter.ids);
+  if (filter.author) q = q.eq('author', filter.author);
+  const { data, error } = await q.order('updated_at', { ascending: false });
   if (error) throw error;
   return data || [];
 }
@@ -123,7 +132,7 @@ export async function getFile(path: string) {
 export async function getHistory(userId: string): Promise<FlashSession[]> {
   const { data, error } = await db()
     .from('flash_sessions')
-    .select('*, firmware_versions(version)')
+    .select('*, firmware_versions(version), projects(name, slug)')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(100);

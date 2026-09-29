@@ -65,3 +65,31 @@ test('unknown paths render a real not-found page', async ({ page }) => {
   await page.goto('/does-not-exist');
   await expect(page.getByRole('heading', { name: '这里还没有内容' })).toBeVisible();
 });
+test('author page, login return path and page titles', async ({ page }) => {
+  await page.goto('/user/BeiYe');
+  await expect(page.getByRole('heading', { name: 'BeiYe', exact: true })).toBeVisible();
+  await expect(page.locator('.stat-grid')).toContainText('公开项目1');
+  await expect(page.locator('.stat-grid')).toContainText('累计烧录12,480');
+  await expect(page.locator('.project-card')).toHaveCount(1);
+  await expect(page).toHaveTitle('BeiYe | KeyFlash');
+  await page.goto('/user/%E5%B0%8F%E6%98%8E');
+  await expect(page.getByRole('heading', { name: '小明', exact: true })).toBeVisible();
+  await page.goto('/user/nobody-here');
+  await expect(page.getByRole('heading', { name: '暂无公开项目' })).toBeVisible();
+
+  await page.goto('/project/open-macropad/reviews');
+  await expect(page).toHaveTitle('Open MacroPad · 社区评价 | KeyFlash');
+  await expect(page.locator('.inline-note').getByRole('link', { name: '登录' })).toHaveAttribute(
+    'href',
+    '/login?next=%2Fproject%2Fopen-macropad%2Freviews',
+  );
+  await page.goto('/history');
+  await expect(page).toHaveTitle('烧录记录 | KeyFlash');
+  await expect(
+    page.locator('#main-content').getByRole('link', { name: '登录 / 注册' }),
+  ).toHaveAttribute('href', '/login?next=%2Fhistory');
+});
+test('flash page ignores an unknown version parameter', async ({ page }) => {
+  await page.goto('/project/dial-one/flash?version=does-not-exist');
+  await expect(page.getByLabel('选择固件版本')).toHaveValue('demo-knob-release');
+});

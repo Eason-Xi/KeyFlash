@@ -6,6 +6,10 @@ import {
   validateManifest,
   sha256,
   projectSchema,
+  releaseSchema,
+  message,
+  safeNext,
+  otpCode,
 } from '../src/lib/validation';
 test('flash address requires complete numeric syntax and sector alignment', () => {
   assert.equal(parseAddress('0x10000'), 65536);
@@ -71,4 +75,105 @@ test('project refuses unsafe URLs and malformed slugs', () => {
   assert.equal(projectSchema.safeParse(p).success, true);
   assert.equal(projectSchema.safeParse({ ...p, github_url: 'javascript:alert(1)' }).success, false);
   assert.equal(projectSchema.safeParse({ ...p, slug: '../x' }).success, false);
+});
+
+const validProject = {
+  name: 'Test Pad',
+  slug: 'test-pad',
+  summary: 'A small test macro keyboard',
+  description: 'A complete description of the test macro keyboard.',
+  chip: 'ESP32-S3',
+  device_type: '宏键盘',
+  features: [],
+  hardware: 'Rev 1',
+  license: 'MIT',
+  github_url: '',
+  website_url: '',
+  status: 'stable',
+};
+test('validation errors name the field in Chinese', () => {
+  const short = projectSchema.safeParse({ ...validProject, summary: '太短' });
+  assert.equal(message(short.error), '一句话简介：至少需要 10 个字符');
+  const slug = projectSchema.safeParse({ ...validProject, slug: 'Bad Slug' });
+  assert.equal(message(slug.error), '项目标识：使用小写字母、数字和连字符');
+  const version = releaseSchema.safeParse({
+    version: 'v1',
+    channel: 'stable',
+    changelog: 'Enough changelog text',
+    hardware: 'Rev 1',
+    baudRate: 460800,
+    online_enabled: true,
+  });
+  assert.match(message(version.error), /^版本号：请输入语义化版本/);
+  assert.equal(projectSchema.parse(validProject).color, 'orange');
+  assert.equal(projectSchema.safeParse({ ...validProject, color: 'red' }).success, false);
+});
+test('backend errors are translated instead of leaking English messages', () => {
+  const pg = (code: string, text: string) => ({ code, message: text, details: null, hint: null });
+  assert.equal(
+    message(pg('23505', 'duplicate key value violates unique constraint "projects_slug_key"')),
+    '项目标识已被使用，请换一个',
+  );
+  assert.equal(
+    message(
+      pg(
+        '23505',
+        'duplicate key value violates unique constraint "firmware_versions_project_id_version_key"',
+      ),
+    ),
+    '该版本号已发布过，请使用新的版本号',
+  );
+  assert.match(
+    message(pg('42501', 'new row violates row-level security policy for table "flash_sessions"')),
+    /没有权限/,
+  );
+  assert.equal(
+    message(pg('P0001', 'A project with releases cannot change its chip')),
+    '已有发布版本的项目不能更换芯片平台',
+  );
+  assert.equal(
+    message({ name: 'AuthApiError', code: 'invalid_credentials', status: 400, message: 'x' }),
+    '邮箱或密码错误',
+  );
+  assert.equal(
+    message({ name: 'AuthApiError', message: 'Invalid login credentials' }),
+    '邮箱或密码错误',
+  );
+  assert.equal(message(new TypeError('Failed to fetch')), '网络连接失败，请检查网络后重试');
+  assert.equal(message(new Error('芯片不匹配')), '芯片不匹配');
+  assert.equal(message(undefined), '操作失败，请重试');
+});
+test('post-login redirect only accepts same-site paths', () => {
+  assert.equal(safeNext('/project/open-macropad/flash'), '/project/open-macropad/flash');
+  assert.equal(safeNext('/history?x=1'), '/history?x=1');
+  for (const bad of [
+    null,
+    '',
+    'https://evil.test',
+    '//evil.test',
+    '/\\evil.test',
+    'javascript:alert(1)',
+    '/login',
+    '/login?next=/x',
+    '/a\nb',
+  ])
+    assert.equal(safeNext(bad), '/dashboard', String(bad));
+});
+test('email OTP accepts six digits and explains failures in Chinese', () => {
+  assert.equal(otpCode.parse('123456'), '123456');
+  assert.equal(otpCode.parse(' 123 456 '), '123456', 'pasted spaces are ignored');
+  for (const bad of ['12345', '1234567', 'abcdef', ''])
+    assert.equal(message(otpCode.safeParse(bad).error), '请输入邮件中的 6 位数字验证码', bad);
+  assert.equal(
+    message({ name: 'AuthApiError', code: 'otp_expired', status: 403, message: 'x' }),
+    '验证码错误或已过期，请重新获取',
+  );
+  assert.equal(
+    message({ name: 'AuthApiError', status: 403, message: 'Token has expired or is invalid' }),
+    '验证码错误或已过期，请重新获取',
+  );
+  assert.match(
+    message({ name: 'AuthApiError', status: 422, message: 'Signups not allowed for otp' }),
+    /尚未注册/,
+  );
 });

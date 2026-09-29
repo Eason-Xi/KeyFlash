@@ -20,20 +20,22 @@ supabase/migrations/            PostgreSQL、RLS、私有 Storage
 
 ## 数据模型
 
-| 对象                              | 用途与可见范围                                            |
-| --------------------------------- | --------------------------------------------------------- |
-| profiles                          | 公开昵称；Auth 邮箱不复制到公开表                         |
-| projects                          | 公开项目；仅 owner_id 用户可编辑                          |
-| firmware_versions                 | 固件版本与嵌入式 Manifest；仅项目作者可发布，内容不可修改 |
-| favorites                         | 仅本人可读写；汇总收藏数公开                              |
-| ratings                           | 公开评分；每个用户/项目唯一，只有本人可更新               |
-| comments                          | 公开文字评价；只能以当前身份提交                          |
-| flash_sessions                    | 仅本人可读、创建、将 started 更新到 success/failed        |
-| compatibility_reports             | 公开设备测试反馈；只能以当前身份提交                      |
-| project_stats                     | 只读公开汇总，只有内部触发器更新                          |
-| project_catalog / comment_catalog | 使用 security_invoker 的公开查询视图，继承底层 RLS        |
+| 对象                              | 用途与可见范围                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| profiles                          | 公开昵称，不区分大小写唯一；Auth 邮箱不复制到公开表；昵称依次取注册昵称、GitHub 用户名、`maker-xxxx` |
+| projects                          | 公开项目；仅 owner_id 用户可编辑                                                                     |
+| firmware_versions                 | 固件版本与嵌入式 Manifest；仅项目作者可发布，内容不可修改                                            |
+| favorites                         | 仅本人可读写；汇总收藏数公开                                                                         |
+| ratings                           | 公开评分；每个用户/项目唯一，只有本人可更新                                                          |
+| comments                          | 公开文字评价；只能以当前身份提交                                                                     |
+| flash_sessions                    | 仅本人可读、创建、将 started 更新到 success/failed                                                   |
+| compatibility_reports             | 公开设备测试反馈；只能以当前身份提交                                                                 |
+| project_stats                     | 只读公开汇总，只有内部触发器更新                                                                     |
+| project_catalog / comment_catalog | 使用 security_invoker 的公开查询视图，继承底层 RLS                                                   |
 
 版本文件以 `{user_id}/{project_id}/{release_id}/{filename}` 存储。私有 bucket 对已发布版本允许访客读取；未发布文件只有上传者可读/清理；不提供 UPDATE 策略，已发布文件不能删除。Manifest 在数据库触发器中再次验证芯片、波特率、文件名、大小、范围、不重叠、文件所属关系和实际 Storage 元信息。
+
+项目表只按列授予写权限：客户端不能写入 `created_at`、修改 `id` / `owner_id`；`updated_at` 虽可写，但由 `guard_project` 触发器强制为当前时间。`color` 限定为界面支持的六种卡片颜色。注册时昵称重名会自动追加 4 位后缀，保证 `/user/{username}` 唯一对应一位作者。
 
 `submit_review` 为普通 invoker 事务函数：一个用户重复评价会更新该项目的唯一评分并追加评论，统计不会重复计算评分。`set_release_online` 仅允许作者切换在线烧录。所有公开表显式启用 RLS、收窄 GRANT；Auth 自动建档、私有统计触发器需要 definer 权限，固定空 search_path 且不开放直接调用。
 
