@@ -12,6 +12,7 @@ import {
   FileCode2,
   X,
   ArrowLeft,
+  AlertTriangle,
 } from 'lucide-react';
 import { listProjects, saveProject, publishRelease, getReleases } from '@/lib/api';
 import { db } from '@/lib/supabase';
@@ -607,6 +608,14 @@ function ReleaseForm({
         地址初始值仅供参考，必须按你的构建产物核对。合并固件通常使用
         0x0。文件发布后不可覆盖，变更请发布新版本。
       </div>
+      {files.length > 0 && !files.some((f) => /^0x0*$/i.test(f.address.trim())) && (
+        <div className="warning">
+          <AlertTriangle size={18} />
+          未包含 0x0 地址的
+          bootloader（或合并镜像）。新板子、擦除过或分区表不同的设备烧录后将无法启动。建议按
+          build/flash_args 同时上传 bootloader.bin（0x0）、partition-table.bin（0x8000）和应用固件。
+        </div>
+      )}
       <label className="checkbox-label">
         <input type="checkbox" name="online_enabled" defaultChecked />
         允许用户在线烧录

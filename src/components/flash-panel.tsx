@@ -19,6 +19,8 @@ export function FlashPanel({ project: p, releases }: { project: Project; release
     () => defaultRelease(releases, params.get('version'))?.id || '',
   );
   const release = releases.find((r) => r.id === releaseId);
+  // 版本不含 0x0 的 bootloader / 合并镜像时，整片擦除会让设备无法启动
+  const hasBootloader = Boolean(release?.manifest.files.some((f) => f.address === 0));
   const [supported, setSupported] = useState<boolean | null>(null);
   const [phase, setPhase] = useState('idle');
   const [device, setDevice] = useState('');
@@ -136,7 +138,7 @@ export function FlashPanel({ project: p, releases }: { project: Project; release
       if (saveError) throw saveError;
       sessionId = data.id;
       const SparkMD5 = (await import('spark-md5')).default;
-      log(erase ? '正在擦除全部 Flash 并写入…' : '正在擦除目标扇区并写入…');
+      log(erase && hasBootloader ? '正在擦除全部 Flash 并写入…' : '正在擦除目标扇区并写入…');
       const start = performance.now();
       const total = files.reduce((a, f) => a + f.data.length, 0);
       await loader.current.writeFlash({
@@ -144,7 +146,7 @@ export function FlashPanel({ project: p, releases }: { project: Project; release
         flashSize: 'keep',
         flashMode: 'keep',
         flashFreq: 'keep',
-        eraseAll: erase,
+        eraseAll: erase && hasBootloader,
         compress: true,
         calculateMD5Hash: (image) => SparkMD5.ArrayBuffer.hash(image.slice().buffer),
         reportProgress: (i, w, t) => {
@@ -160,10 +162,16 @@ export function FlashPanel({ project: p, releases }: { project: Project; release
       hardwareWritten = true;
       log('写入与设备 MD5 校验通过。');
       try {
-        await loader.current.after('hard_reset');
-        log('已发送设备重启指令。');
+        // 不用 loader.after('hard_reset')：esptool-js 的 HardReset 漏了先拉低 EN（RTS=true），
+        // 芯片不会真正复位，会一直停在下载模式，新固件不运行
+        const t = transport.current!;
+        await t.setDTR(false);
+        await t.setRTS(true);
+        await new Promise((r) => setTimeout(r, 200));
+        await t.setRTS(false);
+        log('已发送设备重启指令。若新固件未运行，请将设备断电重启（关机再开机或重新插拔 USB）。');
       } catch {
-        log('自动重启未完成，请手动按 RESET 重启设备。');
+        log('自动重启未完成，请将设备断电重启（关机再开机或重新插拔 USB）。');
       }
       const { error: recordError } = await db()
         .from('flash_sessions')
@@ -322,11 +330,19 @@ export function FlashPanel({ project: p, releases }: { project: Project; release
       <label className="checkbox-label">
         <input
           type="checkbox"
-          checked={erase}
-          disabled={busy}
+          checked={erase && hasBootloader}
+          disabled={busy || !hasBootloader}
           onChange={(e) => setErase(e.target.checked)}
         />
-        <span>擦除全部 Flash（包括已保存的键位、网络与设备配置）</span>
+        <span>
+          擦除全部 Flash（包括已保存的键位、网络与设备配置）
+          {release && !hasBootloader && (
+            <small className="muted">
+              <br />
+              此版本不含 0x0 地址的 bootloader，整片擦除后设备将无法启动，因此不可用。
+            </small>
+          )}
+        </span>
       </label>
       <button
         className="button primary full"
